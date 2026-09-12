@@ -1,0 +1,40 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# macOS and editors
+.DS_Store
+.idea/
+.vscode/
+
+# JavaScript
+node_modules/
+dist/
+.vite/
+coverage/
+
+# Python
+__pycache__/
+*.py[cod]
+.python-version
+.venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# dbt
+warehouse/target/
+warehouse/logs/
+warehouse/dbt_packages/
+
+# Supabase
+supabase/.branches/
+supabase/.temp/
+
+# Local data and Tableau extracts
+data/
+*.hyper
+*.tde
+
