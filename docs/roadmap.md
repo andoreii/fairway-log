@@ -16,7 +16,20 @@ The first version will be an installable web app for my iPhone.
 
 **Useful when:** I can finish a real round with my phone in airplane mode, reconnect, and see every hole once in the database.
 
-## 2. Clean and model the data
+## 2. Import old rounds
+
+The spreadsheet importer will bring my existing history into the same system as rounds recorded with the app.
+
+- Provide one fixed Excel template with one row per hole
+- Accept more than 250 rounds in one workbook
+- Keep original uploads private
+- Import valid rounds without letting one bad round block the rest
+- Show useful errors with sheet rows and field names
+- Make corrected uploads and pipeline retries safe
+
+**Useful when:** one workbook containing at least 251 complete rounds loads without duplicate rounds or holes.
+
+## 3. Clean and model the data
 
 Raw submissions will be kept so that a pipeline can always be replayed from the beginning.
 
@@ -29,7 +42,7 @@ Raw submissions will be kept so that a pipeline can always be replayed from the 
 
 **Useful when:** a full replay and an incremental run produce the same clean results.
 
-## 3. Build the Tableau view
+## 4. Build the Tableau view
 
 Only completed rounds and a privacy-safe set of fields will leave the private database.
 
@@ -41,7 +54,7 @@ Only completed rounds and a privacy-safe set of fields will leave the private da
 
 **Useful when:** someone can open one link and understand both how I play and how the data reached the dashboard.
 
-## 4. Add the science carefully
+## 5. Add the science carefully
 
 I do not want to force a model onto a tiny dataset. Descriptive statistics come first.
 
@@ -61,4 +74,3 @@ I do not want to force a model onto a tiny dataset. Descriptive statistics come 
 - Handicap-system integration
 - A native App Store release
 - Live Tableau connections or paid infrastructure
-
