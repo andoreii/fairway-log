@@ -4,7 +4,7 @@
 
 Fairway Log will accept historical golf rounds from a fixed Excel template in addition to rounds recorded in the iPhone app. The importer must comfortably process more than 250 rounds, preserve the source workbook, reject unreliable data clearly, and feed the same canonical tables as app-recorded rounds.
 
-The first version accepts up to 20,000 hole rows or a 25 MB workbook. It supports multiple uploads over time and never places personal source files in the public repository.
+The first version accepts up to 20,000 hole rows and a maximum 25 MB workbook; both limits apply. It supports multiple uploads over time and never places personal source files in the public repository. The [implementation plan](../../implementation-plan.md) supplies the executable task sequence and shared edge-case decisions.
 
 ## User flow
 
@@ -44,7 +44,7 @@ The `holes` sheet contains these columns in this order:
 | `putts` | Yes | Integer from `0` through `score` |
 | `tee_accuracy` | Yes | Value from the tee-accuracy list |
 | `approach_accuracy` | Yes | Value from the approach-accuracy list |
-| `first_putt_distance_ft` | Conditional | Whole feet greater than zero when `putts > 0`; blank when `putts = 0` |
+| `first_putt_distance_ft` | Conditional | Non-negative whole feet when `putts > 0`; zero estimates less than half a foot; blank when `putts = 0` |
 | `penalties` | Yes | Integer from `0` through `10` |
 | `tee_club` | Yes | Trimmed, non-empty text |
 | `approach_club` | No | Trimmed text or blank |
@@ -67,14 +67,15 @@ The import record stores:
 - Template version
 - Status: `UPLOADED`, `PROCESSING`, `IMPORTED`, `PARTIAL`, `FAILED`, or `DUPLICATE`
 - Counts for total, accepted, and rejected rounds and holes
+- Separate counts for rounds awaiting duplicate review
 - Created, processing-started, and processing-finished timestamps
 - Error-report object path when applicable
 
-An identical checksum for the same owner is marked `DUPLICATE` and is not processed again.
+An identical checksum for the same owner produces a `DUPLICATE` upload result pointing to the original batch and is not processed as a new batch. An infrastructure retry resumes the original batch. The worker verifies the browser-supplied checksum against the actual stored file.
 
 ## Processing model
 
-The Python ETL job streams the `holes` sheet in read-only mode. It validates the workbook structure, normalizes cell types and labels, groups rows by `round_key`, and processes each group as one unit.
+The Python ETL job streams the `holes` sheet in read-only mode into a temporary local SQLite spool. It validates the full workbook envelope before promoting any rounds, normalizes cell types and labels, groups rows by `round_key`, and processes each group as one unit. This supports interleaved round rows without retaining the workbook in memory. Reject formulas in data cells, and do not evaluate workbook formulas or macros.
 
 Round-level atomicity applies:
 
@@ -83,17 +84,17 @@ Round-level atomicity applies:
 - A rejected round does not prevent unrelated valid rounds in the workbook from loading.
 - Every rejected row retains its sheet row number, field, supplied value, stable error code, and human-readable reason.
 
-Valid spreadsheet rounds enter the same raw and canonical layers as app rounds, tagged with source type `SPREADSHEET`. The original row payload and import ID remain available in the private raw layer for replay and audit.
+Valid spreadsheet rounds enter the same operational history and raw event layers as app rounds, tagged with source type `SPREADSHEET`. Shared canonical ETL then writes `core`; the workbook parser does not bypass it. The original row payload and import ID remain available in the private raw layer for replay and audit. Imported rounds are read-only in the hole editor and corrected by workbook upload.
 
-`round_key` is stable per owner and source type. Uploading corrected data with the same `round_key` creates a new audited import revision and atomically replaces the earlier spreadsheet-sourced version after the entire round passes validation. It never creates a second canonical round.
+`round_key` is stable per owner and source type. Uploading corrected data with the same `round_key` creates a new audited import revision and atomically replaces the earlier spreadsheet-sourced version after the entire round passes validation. It never creates a second canonical round. Upload sequence determines correction precedence; processing an older queued upload cannot overwrite a newer accepted correction. An invalid correction preserves the earlier accepted version.
 
-If an imported round appears to match an app-recorded round by date, course, and tee, the pipeline flags a possible duplicate for review instead of merging or deleting either record automatically.
+If an imported round appears to match an app-recorded round by date, course, and tee, the pipeline holds the candidate in `NEEDS_REVIEW` and excludes it from analytics. The owner chooses `Keep both`, `Keep app round`, or `Keep imported round`. The resolution is audited and replayable; exclusion never deletes either raw history.
 
 ## Courses and clubs
 
 A new course and tee set may be created from an imported round only when the workbook supplies a complete, internally consistent 9-hole or 18-hole definition.
 
-If the course and tee set already exist, imported par and yardage must match the stored definition. A mismatch rejects the affected round with a course-definition error; the importer never overwrites an existing definition.
+If the course and tee set already exist, imported par and yardage must match already-defined holes. A complete missing nine may extend the tee through a new immutable definition version. A mismatch rejects the affected round with a course-definition error; genuinely different historical definitions require a separate tee name. The importer never overwrites an existing definition.
 
 New club labels are normalized and retained as historical clubs with `active_in_bag = false`. Existing labels map case-insensitively to their stable club IDs. The import does not change the current contents of My Bag.
 

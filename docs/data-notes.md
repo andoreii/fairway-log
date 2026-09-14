@@ -25,7 +25,7 @@ Each completed hole records:
 | Putts | Zero is allowed for a hole-out |
 | Tee accuracy | Direction or final result of the tee shot |
 | Approach accuracy | Direction or final result of the shot intended to reach the green |
-| First-putt distance | Required when putts are greater than zero |
+| First-putt distance | Whole feet when putts are greater than zero; zero means an estimate below half a foot; blank when there were no putts |
 | Penalties | Penalty strokes included in the score |
 | Tee club | Selected from My Bag |
 | Approach club | Optional and selected from My Bag |
@@ -43,7 +43,7 @@ Tee accuracy:
 - Left, right, long, or short bunker
 - Not applicable
 
-Approach accuracy uses the same directional, green, out-of-bounds, and bunker choices, without fairway.
+Approach accuracy uses the same directional, green, out-of-bounds, and bunker choices, without fairway. `Not applicable` is available when there was no separate approach. On par 3s, record and copy the actual tee outcome rather than choosing `Not applicable` merely because FIR does not apply.
 
 ## Calculated golf metrics
 
@@ -54,15 +54,16 @@ strokes before putting = score - putts
 GIR = strokes before putting <= par - 2
 ```
 
-GIR is calculated rather than entered.
+GIR is calculated rather than entered and labeled as inferred. The formula cannot establish actual regulation status in every case: chip-ins or leaving a green can change score minus putts without describing when the green was first reached. Putts means strokes played from the putting green.
 
 ### Fairway in regulation
 
 - Par 4 or 5 ending in `Fairway` or `Green`: hit
-- Par 4 or 5 with another tee result: missed
+- Par 4 or 5 with another recorded tee result: missed
 - Par 3: not applicable
+- Tee result `Not applicable`: unknown and excluded from the denominator
 
-FIR is also calculated rather than entered.
+FIR is also calculated rather than entered. Counting a par-4/5 tee shot on the green as a hit is this project's reporting convention.
 
 ## Public data boundary
 
@@ -81,4 +82,3 @@ The cleaning pipeline should catch or quarantine:
 - A 9-hole round containing the wrong set of hole numbers
 - Invalid score, par, yardage, penalty, or distance values
 - Older edits arriving after a newer version of the same hole
-

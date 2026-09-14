@@ -2,6 +2,8 @@
 
 Fairway Log is a personal golf tracker first and a data project second. The system should be useful on the course even if the analytics pieces are temporarily unavailable.
 
+The [implementation plan](implementation-plan.md) defines the task sequence, interfaces, and acceptance checks. Its shared decisions clarify the edge cases summarized here.
+
 ## What complete means
 
 The first complete version will:
@@ -49,7 +51,7 @@ Supabase is the source of truth. Google Sheets is only a delivery layer for Tabl
 
 The app saves each hole to IndexedDB before attempting a network request. An active round survives the app closing, an expired session, or loss of reception. Synchronization resumes when the app opens online or the user retries it.
 
-Every local round and hole has a stable UUID and integer revision. Supabase accepts only a newer revision, acknowledges repeated revisions without inserting another record, and does not use device clocks to resolve conflicts.
+Rounds have stable UUIDs and holes have stable numbers within a round. The app synchronizes complete round snapshots with a unique mutation ID and the last acknowledged server revision. Supabase acknowledges identical retries and returns a conflict when the base revision is stale; the app retains local edits until that conflict is resolved. Device clocks do not decide which edit wins.
 
 The app includes only four areas: active round, course setup, My Bag, and history. The interface favors large controls, short forms, and visible local/synchronized status over decorative features.
 
@@ -59,7 +61,7 @@ The private app also accepts a fixed `.xlsx` workbook with one row per hole. Ori
 
 The complete workbook contract, correction behavior, limits, and error rules are defined in [Spreadsheet Import Design](superpowers/specs/2026-09-15-spreadsheet-import-design.md).
 
-App and spreadsheet records share the same canonical tables but retain their source type and raw lineage. A possible duplicate across the two sources is flagged for review rather than merged automatically.
+App and spreadsheet records share operational history and canonical tables but retain their source type and raw lineage. A possible duplicate across the two sources is held out of reporting until the owner chooses which record to keep or confirms that both are distinct rounds. Neither raw history is deleted.
 
 ## Golf data contract
 
@@ -75,7 +77,7 @@ Each completed hole records:
 
 Course distance uses yards. Tee club is required and approach club is optional. On par 3s, tee accuracy is also approach accuracy.
 
-GIR is true when `score - putts <= par - 2`. FIR is true for a par 4 or 5 when tee accuracy is `Fairway` or `Green`, false for other outcomes, and not applicable on par 3s. Neither metric is manually editable.
+Inferred GIR is true when `score - putts <= par - 2`. This is a proxy and can differ from actual regulation status in exceptional holes, including chip-ins or leaving a green. FIR is true for a par 4 or 5 when tee accuracy is `Fairway` or `Green`, false for other recorded outcomes, and not applicable on par 3s or when the tee result is `Not applicable`. Neither metric is manually editable.
 
 ## ETL and ELT
 
@@ -83,7 +85,7 @@ The private raw layer keeps immutable, versioned app events and spreadsheet rows
 
 The Python ETL job:
 
-1. Extracts only events after its saved watermark.
+1. Extracts committed events absent from its durable processing ledger, so out-of-order commits cannot be skipped by a sequence watermark.
 2. Validates types, ranges, references, completeness, revisions, and cross-field golf rules.
 3. Normalizes supported labels and removes duplicate retries.
 4. Loads valid records into canonical tables.
@@ -118,7 +120,7 @@ The dashboard will cover overall scoring, FIR/GIR, miss directions, club results
 
 Descriptive analysis and confidence intervals are available before predictive modeling. The model remains hidden until the database contains 360 completed holes.
 
-The first model is an interpretable regularized regression for score relative to par. Evaluation groups holes by round, compares against a simple baseline, reports holdout error, and excludes score components or identifiers that would leak the answer. Results are presented as associations, not causal swing advice.
+The first model is an interpretable regularized regression for score relative to par using pre-hole information: par, yardage, and tee club. It requires at least 360 completed holes across 20 rounds. Evaluation holds out the newest rounds, keeps holes grouped by round, fits preprocessing on training data only, and compares against a par-group mean baseline. Results are presented as exploratory predictions, not causal swing advice.
 
 ## Testing data
 
